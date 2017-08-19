@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	metrics "github.com/armon/go-metrics"
 	"github.com/boltdb/bolt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/nomad/client/allocdir"
@@ -649,6 +650,7 @@ func (r *AllocRunner) setTaskState(taskName, state string, event *structs.TaskEv
 			taskState.Failed = true
 		}
 		if event.Type == structs.TaskRestarting {
+			metrics.IncrCounter([]string{"client", "allocs", r.alloc.Job.Name, r.alloc.TaskGroup, taskName, "restart"}, 1)
 			taskState.Restarts++
 			taskState.LastRestart = time.Unix(0, event.Time)
 		}
@@ -672,12 +674,14 @@ func (r *AllocRunner) setTaskState(taskName, state string, event *structs.TaskEv
 		// Capture the start time if it is just starting
 		if taskState.State != structs.TaskStateRunning {
 			taskState.StartedAt = time.Now().UTC()
+			metrics.IncrCounter([]string{"client", "allocs", r.alloc.Job.Name, r.alloc.TaskGroup, taskName, "running"}, 1)
 		}
 	case structs.TaskStateDead:
 		// Capture the finished time. If it has never started there is no finish
 		// time
 		if !taskState.StartedAt.IsZero() {
 			taskState.FinishedAt = time.Now().UTC()
+			metrics.IncrCounter([]string{"client", "allocs", r.alloc.Job.Name, r.alloc.TaskGroup, taskName, "dead"}, 1)
 		}
 
 		// Find all tasks that are not the one that is dead and check if the one
@@ -743,6 +747,9 @@ func (r *AllocRunner) appendTaskEvent(state *structs.TaskState, event *structs.T
 func (r *AllocRunner) Run() {
 	defer close(r.waitCh)
 	go r.dirtySyncState()
+
+	// Incr alloc runner start counter
+	metrics.IncrCounter([]string{"client", "allocs", r.alloc.Job.Name, r.alloc.TaskGroup, "start"}, 1)
 
 	// Find the task group to run in the allocation
 	alloc := r.Alloc()
@@ -925,6 +932,9 @@ func (r *AllocRunner) handleDestroy() {
 	// Final state sync. We do this to ensure that the server has the correct
 	// state as we wait for a destroy.
 	alloc := r.Alloc()
+
+	// Incr the alloc destroy counter
+	metrics.IncrCounter([]string{"client", "allocs", r.alloc.Job.Name, r.alloc.TaskGroup, "destroy"}, 1)
 
 	//TODO(schmichael) updater can cause a GC which can block on this alloc
 	// runner shutting down. Since handleDestroy can be called by Run() we
