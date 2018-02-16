@@ -1,3 +1,5 @@
+## 0.7.1-simplesurance (January 16, 2018)
+ * revert change to increase min. CPU resource value from 20 to 100
 ## 0.7.1 (December 19, 2017)
 
 __BACKWARDS INCOMPATIBILITIES:__
